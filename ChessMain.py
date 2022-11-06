@@ -2,7 +2,6 @@
 This is the main driver file. It will be responsible for handling user input and displaying current GameState object.
 """
 
-from xml.etree.ElementTree import TreeBuilder
 import pygame as p
 import ChessEngine # we are inside the same directory, hence no 'from ChessGame import ChessEngine' :)
 
@@ -43,6 +42,7 @@ def main():
         for e in p.event.get():
             if e.type == p.QUIT:
                 running = False
+            # mouse handler
             elif e.type == p.MOUSEBUTTONDOWN:
                 location = p.mouse.get_pos() # (x,y) location of mouse
                 col = location[0] // SQ_SIZE
@@ -51,17 +51,22 @@ def main():
                 if sqSelected == (row, col): # if the user clicked the same square
                     sqSelected = () # deselect
                     playerClicks = [] # clear player clicks
-                    print(sqSelected)
+
                 else:
                     sqSelected = (row, col)
                     playerClicks.append(sqSelected) # append for both 1st and 2nd clicks
-                    print(sqSelected, playerClicks)
+                    
                 if len(playerClicks) == 2: # after second click
                     move = ChessEngine.Move(playerClicks[0], playerClicks[1], gs.board)
-                    print(move.getChessNotation())
                     gs.makeMove(move)
                     sqSelected = () # reset user clicks
                     playerClicks = []
+
+            #key handlers
+            elif e.type == p.KEYDOWN:
+                if e.key == p.K_z: # undo when 'z' key is pressed
+                    gs.undoMove()
+
 
         drawGameState(screen, gs)
         clock.tick(MAX_FPS)
