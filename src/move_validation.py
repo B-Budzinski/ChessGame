@@ -48,6 +48,12 @@ class PawnMoveValidator(MoveValidator):
         piece_color = Square(move.pieceMoved)[0]
         direction = 1 if piece_color == Player.BLACK else -1
         
+        # Check for pawn promotion
+        if (piece_color == Player.WHITE and move.endRow == 0) or \
+           (piece_color == Player.BLACK and move.endRow == 7):
+            move.isPawnPromotion = True
+            move.promotedPiece = Square.wQ if piece_color == Player.WHITE else Square.bQ
+        
         # Normal one-square move
         if move.pieceCaptured == Square.EMPTY and (
             (move.startRow + direction, move.startCol) == (move.endRow, move.endCol)
@@ -66,12 +72,24 @@ class PawnMoveValidator(MoveValidator):
                 return False
             return True
             
-        # Capture moves
+        # Regular capture moves
         if move.pieceCaptured != Square.EMPTY and (
             (move.startRow + direction, move.startCol - 1) == (move.endRow, move.endCol) or
             (move.startRow + direction, move.startCol + 1) == (move.endRow, move.endCol)
         ):
             return True
+            
+        # En passant
+        if hasattr(move.gameState, 'enPassantPossible') and move.gameState.enPassantPossible:
+            enPassant_row, enPassant_col = move.gameState.enPassantPossible
+            if (move.endRow, move.endCol) == (enPassant_row, enPassant_col):
+                # Verify it's a diagonal move
+                if abs(move.startCol - move.endCol) == 1 and move.endRow == move.startRow + direction:
+                    move.isEnPassant = True
+                    # The captured pawn is on the same row as the starting position
+                    move.enPassantCaptureRow = move.startRow
+                    move.enPassantCaptureCol = move.endCol
+                    return True
             
         return False
 
@@ -128,7 +146,51 @@ class KingMoveValidator(MoveValidator):
             
         row_diff = abs(move.endRow - move.startRow)
         col_diff = abs(move.endCol - move.startCol)
-        return row_diff <= 1 and col_diff <= 1
+        
+        # Normal king moves
+        if row_diff <= 1 and col_diff <= 1:
+            return True
+            
+        # Castling
+        if row_diff == 0 and col_diff == 2:
+            # Check if this is a castling attempt
+            is_white = Square(move.pieceMoved)[0] == Player.WHITE
+            is_kingside = move.endCol > move.startCol
+            
+            # Verify king and rook positions
+            if is_white and move.startRow != 7:
+                return False
+            if not is_white and move.startRow != 0:
+                return False
+            if move.startCol != 4:
+                return False
+                
+            # Check castling rights
+            if (is_white and not move.gameState.castlingRights.white_can_castle) or \
+               (not is_white and not move.gameState.castlingRights.black_can_castle):
+                return False
+            
+            # Check if squares between king and rook are empty
+            rook_col = 7 if is_kingside else 0
+            path = self._get_path_positions(move)
+            if not self._is_path_clear(move, path):
+                return False
+                
+            # Verify rook presence
+            expected_rook = Square.wR if is_white else Square.bR
+            if move.board[move.startRow][rook_col] != expected_rook:
+                return False
+                
+            # Set castling info
+            move.isCastling = True
+            move.rookMove.startRow = move.startRow
+            move.rookMove.startCol = rook_col
+            move.rookMove.endRow = move.startRow
+            move.rookMove.endCol = move.startCol + (1 if is_kingside else -1)
+            
+            return True
+            
+        return False
 
 class MoveValidatorFactory:
     _validators = {

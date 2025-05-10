@@ -75,7 +75,7 @@ def main():
                     log.debug(f"Square selected at position: ({row}, {col})")
 
                 if len(playerClicks) == 2:  # after second click
-                    move = game_engine.Move(playerClicks[0], playerClicks[1], gs.board)
+                    move = game_engine.Move(playerClicks[0], playerClicks[1], gs)
                     log.debug(f"Attempting move from {playerClicks[0]} to {playerClicks[1]}")
                     gs.checkMoveValidity(move)
                     if move.valid:  # check move validity
