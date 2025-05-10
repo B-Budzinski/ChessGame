@@ -1,28 +1,23 @@
 """
 This is the main driver file. It will be responsible for handling user input and displaying current GameState object.
 """
-
-import pygame as p
-import src.ChessEngine as ChessEngine  # we are inside the same directory, hence no 'from ChessGame import ChessEngine' :)
 import logging as log
+import pygame as p
+import src.game_engine as game_engine  # we are inside the same directory, hence no 'from ChessGame import ChessEngine' :)
+from src.constants import WIDTH, HEIGHT, SQ_SIZE, MAX_FPS, IMAGES, DIMENSION
 
 log.basicConfig(
-    filename="app.log",
-    filemode="a",
     level=log.DEBUG,
     format="%(name)s - %(levelname)s - %(asctime)s - %(message)s",
     datefmt="%Y-%m-%d  %H:%M:%S",
+    handlers=[
+        log.FileHandler("app.log", mode="a"),
+        log.StreamHandler()  # This will output logs to console
+    ]
 )
 
 
 p.init()
-WIDTH = (
-    HEIGHT
-) = 512  # 400 another good option, could go larger but the images are low res
-DIMENSION = 8  # chessboard is 8x8
-SQ_SIZE = HEIGHT // DIMENSION
-MAX_FPS = 15  # for animations
-IMAGES = {}
 
 """
 Initialize a global dictionary of images. This will be called only once in the main
@@ -48,7 +43,7 @@ def main():
     screen = p.display.set_mode((WIDTH, HEIGHT))
     clock = p.time.Clock()
     screen.fill(p.Color("white"))
-    gs = ChessEngine.GameState()
+    gs = game_engine.GameState()
     loadImages()  # only doing this once, before the while loop
     running = True
     sqSelected = ()  # no square selected initially, keep track of the last click of the user (tuple: row, col))
@@ -75,7 +70,7 @@ def main():
                     )  # append for both 1st and 2nd clicks
 
                 if len(playerClicks) == 2:  # after second click
-                    move = ChessEngine.Move(playerClicks[0], playerClicks[1], gs.board)
+                    move = game_engine.Move(playerClicks[0], playerClicks[1], gs.board)
                     gs.checkMoveValidity(move)
                     if move.valid:  # check move validity
                         gs.makeMove(move)

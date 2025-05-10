@@ -3,6 +3,37 @@ This class is responsible for storing all of the info about the current state of
 """
 import logging as log
 
+from src.move_validation import validate_pawn
+
+class Move:
+    # maps keys to values;
+    # key : value
+    ranksToRows = {"1": 7, "2": 6, "3": 5, "4": 4, "5": 3, "6": 2, "7": 1, "8": 0}
+    rowsToRanks = {v: k for k, v in ranksToRows.items()}
+
+    filesToCols = {"a": 0, "b": 1, "c": 2, "d": 3, "e": 4, "f": 5, "g": 6, "h": 7}
+    colsToFiles = {v: k for k, v in filesToCols.items()}
+
+    def __init__(self, startSq, endSq, board):
+        self.startRow = startSq[0]
+        self.startCol = startSq[1]
+        self.endRow = endSq[0]
+        self.endCol = endSq[1]
+        self.pieceMoved = board[self.startRow][self.startCol]
+        self.pieceCaptured = board[self.endRow][self.endCol]
+        self.valid = True  # init validitiy as True (maybe switch to false later?)
+
+    def getRankFile(self, r, c):
+        return self.colsToFiles[c] + self.rowsToRanks[r]
+    
+    def getChessNotation(self):
+        # not really a chess notation because there's a lot more logic going into it, which doesn't matter at this point
+        return self.getRankFile(self.startRow, self.startCol) + self.getRankFile(
+            self.endRow, self.endCol
+        )
+
+    
+
 
 class GameState:
     """
@@ -29,25 +60,19 @@ class GameState:
         self.whiteToMove = True
         self.moveLog = []
 
-    """
-    Takes Move as parameter and determines if it's valid
-    """
-
-    def checkMoveValidity(self, move):
+    def checkMoveValidity(self, move: Move):
+        """
+        Takes Move as parameter and determines if it's valid
+        """
+        # First check if it's the correct player's turn
+        if (self.whiteToMove and move.pieceMoved[0] != 'w') or (not self.whiteToMove and move.pieceMoved[0] != 'b'):
+            move.valid = False
+            return
 
         # Definitely needs to be rewritten more elegantly
         if move.pieceMoved[0] == "w":
             if move.pieceMoved[1] == "p":
-                print("found a pawn!")
-                if move.pieceCaptured == "--" and (((move.startRow, move.startCol) == (move.endRow + 1, move.endCol)) or 
-                                                   ((move.startRow, move.startCol) == (move.endRow + 2, move.endCol))):
-                    move.valid = True
-
-                elif move.pieceCaptured != "--" and (((move.startRow, move.startCol) == (move.endRow + 1, move.endCol - 1)) or 
-                                                   ((move.startRow, move.startCol) == (move.endRow + 1, move.endCol + 1))):
-                    move.valid = True
-                else:
-                    move.valid = False
+                validate_pawn(move)
 
             elif move.pieceMoved[1] == "R":
                 print("found a rook!")
@@ -66,14 +91,7 @@ class GameState:
 
         elif move.pieceMoved[0] == "b":
             if move.pieceMoved[1] == "p":
-                print("found a pawn!")
-                if move.pieceCaptured == "--" and (move.startRow, move.startCol) == (
-                    move.endRow - 1,
-                    move.endCol,
-                ):
-                    move.valid = True
-                else:
-                    move.valid = False
+                validate_pawn(move)
 
             elif move.pieceMoved[1] == "R":
                 print("found a rook!")
@@ -90,55 +108,36 @@ class GameState:
             elif move.pieceMoved[1] == "K":
                 print("found a King!")
 
-    """
-    Takes a Move as a parameter and executes it (this will not work for castling, pawn promotion and en-passant)
-    """
+    def swap_players(self):
+        """
+        Swaps the players
+        """
+        self.whiteToMove = not self.whiteToMove
+        log.debug(f"swapped players: {self.whiteToMove}")
 
     def makeMove(self, move):
+        """
+        Takes a Move as a parameter and executes it (this will not work for castling, pawn promotion and en-passant)
+        """
         if move.pieceMoved != "--":
             self.board[move.startRow][move.startCol] = "--"
             self.board[move.endRow][move.endCol] = move.pieceMoved
             self.moveLog.append(move)  # log the move so we can undo it later
-            self.whiteToMove = not self.whiteToMove  # swap players
+            self.swap_players()
             log.info(f"move: {move.pieceMoved} -> {move.pieceCaptured}")
 
-    """
-    Undo the last move made
-    """
+    
 
     def undoMove(self):
+        """
+        Undo the last move made
+        """
         if len(self.moveLog) != 0:  # make sure there is a move to undo
             move = (
                 self.moveLog.pop()
             )  # removes last element from the list, and assigns it to the move variable
             self.board[move.startRow][move.startCol] = move.pieceMoved
             self.board[move.endRow][move.endCol] = move.pieceCaptured
-            self.whiteToMove = not self.whiteToMove  # switch turns back
+            self.swap_players()
 
 
-class Move:
-    # maps keys to values;
-    # key : value
-    ranksToRows = {"1": 7, "2": 6, "3": 5, "4": 4, "5": 3, "6": 2, "7": 1, "8": 0}
-    rowsToRanks = {v: k for k, v in ranksToRows.items()}
-
-    filesToCols = {"a": 0, "b": 1, "c": 2, "d": 3, "e": 4, "f": 5, "g": 6, "h": 7}
-    colsToFiles = {v: k for k, v in filesToCols.items()}
-
-    def __init__(self, startSq, endSq, board):
-        self.startRow = startSq[0]
-        self.startCol = startSq[1]
-        self.endRow = endSq[0]
-        self.endCol = endSq[1]
-        self.pieceMoved = board[self.startRow][self.startCol]
-        self.pieceCaptured = board[self.endRow][self.endCol]
-        self.valid = True  # init validitiy as True (maybe switch to false later?)
-
-    def getChessNotation(self):
-        # not really a chess notation because there's a lot more logic going into it, which doesn't matter at this point
-        return self.getRankFile(self.startRow, self.startCol) + self.getRankFile(
-            self.endRow, self.endCol
-        )
-
-    def getRankFile(self, r, c):
-        return self.colsToFiles[c] + self.rowsToRanks[r]
