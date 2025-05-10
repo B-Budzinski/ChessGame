@@ -52,6 +52,7 @@ class GameState:
         ]
         self.whiteToMove = True
         self.moveLog = []
+        log.info("New game state initialized")
 
     def checkMoveValidity(self, move: Move):
         """
@@ -63,17 +64,19 @@ class GameState:
         # First check if it's the correct player's turn
         if (self.whiteToMove and piece_color != Player.WHITE) or (not self.whiteToMove and piece_color != Player.BLACK):
             move.valid = False
+            log.warning(f"Invalid turn: {'White' if self.whiteToMove else 'Black'} to move, but {piece_color} piece selected")
             return
 
         validator = MoveValidatorFactory.get_validator(piece_type)
         move.valid = validator.validate(move) if validator else False
+        log.debug(f"Move validation for {piece_type} from {(move.startRow, move.startCol)} to {(move.endRow, move.endCol)}: {'Valid' if move.valid else 'Invalid'}")
 
     def swap_players(self):
         """
         Swaps the players
         """
         self.whiteToMove = not self.whiteToMove
-        log.debug(f"swapped players: {self.whiteToMove}")
+        log.debug(f"Turn changed: {'White' if self.whiteToMove else 'Black'} to move")
 
     def makeMove(self, move):
         """
@@ -84,7 +87,8 @@ class GameState:
             self.board[move.endRow][move.endCol] = move.pieceMoved
             self.moveLog.append(move)  # log the move so we can undo it later
             self.swap_players()
-            log.info(f"move: {move.pieceMoved} -> {move.pieceCaptured}")
+            log.info(f"Move executed: {move.pieceMoved} from {(move.startRow, move.startCol)} to {(move.endRow, move.endCol)}" + 
+                    (f" capturing {move.pieceCaptured}" if move.pieceCaptured != Square.EMPTY else ""))
     
     def undoMove(self):
         """
@@ -95,5 +99,8 @@ class GameState:
             self.board[move.startRow][move.startCol] = move.pieceMoved
             self.board[move.endRow][move.endCol] = move.pieceCaptured
             self.swap_players()
+            log.info(f"Move undone: {move.pieceMoved} returned from {(move.endRow, move.endCol)} to {(move.startRow, move.startCol)}")
+        else:
+            log.warning("Attempted to undo move but no moves in log")
 
 

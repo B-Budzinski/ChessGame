@@ -49,9 +49,12 @@ def main():
     sqSelected = ()  # no square selected initially, keep track of the last click of the user (tuple: row, col))
     playerClicks = []  # keep track of player clicks (two tuples: [(6,4), (4,4)])
 
+    log.info("Starting new chess game")
+
     while running:
         for e in p.event.get():
             if e.type == p.QUIT:
+                log.info("Game terminated by user")
                 running = False
             # mouse handler
             elif e.type == p.MOUSEBUTTONDOWN:
@@ -60,6 +63,7 @@ def main():
                 row = location[1] // SQ_SIZE
 
                 if sqSelected == (row, col):  # if the user clicked the same square
+                    log.debug(f"Square deselected at position: ({row}, {col})")
                     sqSelected = ()  # deselect
                     playerClicks = []  # clear player clicks
 
@@ -68,15 +72,18 @@ def main():
                     playerClicks.append(
                         sqSelected
                     )  # append for both 1st and 2nd clicks
+                    log.debug(f"Square selected at position: ({row}, {col})")
 
                 if len(playerClicks) == 2:  # after second click
                     move = game_engine.Move(playerClicks[0], playerClicks[1], gs.board)
+                    log.debug(f"Attempting move from {playerClicks[0]} to {playerClicks[1]}")
                     gs.checkMoveValidity(move)
                     if move.valid:  # check move validity
                         gs.makeMove(move)
                         sqSelected = ()  # reset user clicks
                         playerClicks = []
                     else:
+                        log.warning(f"Invalid move attempted from {playerClicks[0]} to {playerClicks[1]}")
                         sqSelected = ()  # reset user clicks
                         playerClicks = []
                         move.valid = True # switch back to True
@@ -85,6 +92,7 @@ def main():
             # key handlers
             elif e.type == p.KEYDOWN:
                 if e.key == p.K_z:  # undo when 'z' key is pressed
+                    log.debug("Undo move requested")
                     gs.undoMove()
 
         drawGameState(screen, gs, sqSelected)
