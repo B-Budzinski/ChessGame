@@ -2,8 +2,8 @@
 This class is responsible for storing all of the info about the current state of a chess game. It will also be responsible for determining the valid moves at the current state. It will also keep a move log.
 """
 import logging as log
-from src.move_validation import validate_pawn
 from src.constants import Square, Player, PieceType
+from src.move_validation import MoveValidatorFactory
 
 class Move:
     # maps keys to values;
@@ -18,6 +18,7 @@ class Move:
         self.startCol = startSq[1]
         self.endRow = endSq[0]
         self.endCol = endSq[1]
+        self.board = board  # Store reference to full board for path validation
         self.pieceMoved = board[self.startRow][self.startCol]
         self.pieceCaptured = board[self.endRow][self.endCol]
         self.valid = True  # init validitiy as True (maybe switch to false later?)
@@ -64,18 +65,8 @@ class GameState:
             move.valid = False
             return
 
-        if piece_type == PieceType.PAWN:
-            validate_pawn(move)
-        elif piece_type == PieceType.ROOK:
-            print("found a rook!")
-        elif piece_type == PieceType.KNIGHT:
-            print("found a Knight!")
-        elif piece_type == PieceType.BISHOP:
-            print("found a Bishop!")
-        elif piece_type == PieceType.QUEEN:
-            print("found a Queen!")
-        elif piece_type == PieceType.KING:
-            print("found a King!")
+        validator = MoveValidatorFactory.get_validator(piece_type)
+        move.valid = validator.validate(move) if validator else False
 
     def swap_players(self):
         """
@@ -88,7 +79,7 @@ class GameState:
         """
         Takes a Move as a parameter and executes it (this will not work for castling, pawn promotion and en-passant)
         """
-        if move.pieceMoved != Square.EMPTY:
+        if move.pieceMoved != Square.EMPTY and move.valid:
             self.board[move.startRow][move.startCol] = Square.EMPTY
             self.board[move.endRow][move.endCol] = move.pieceMoved
             self.moveLog.append(move)  # log the move so we can undo it later

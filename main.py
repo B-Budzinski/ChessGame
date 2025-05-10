@@ -87,7 +87,7 @@ def main():
                 if e.key == p.K_z:  # undo when 'z' key is pressed
                     gs.undoMove()
 
-        drawGameState(screen, gs)
+        drawGameState(screen, gs, sqSelected)
         clock.tick(MAX_FPS)
         p.display.flip()
 
@@ -95,13 +95,24 @@ def main():
 """
 Responsible for all the graphics within a current game state.
 """
-
-
-def drawGameState(screen, gs):
+def drawGameState(screen, gs, sqSelected):
     drawBoard(screen)  # draw squares on the board
-    # add in piece highlighting or move suggestions (later)
+    if sqSelected != ():  # if a square is selected
+        highlightSquare(screen, sqSelected)
     drawPieces(screen, gs.board)  # draw pieces on top of those squares
 
+"""
+Highlight the selected square with a red border
+"""
+def highlightSquare(screen, square):
+    if square != ():  # if square is selected
+        row, col = square
+        s = p.Surface((SQ_SIZE, SQ_SIZE))
+        s.set_alpha(100)  # transparency value -> 0 transparent; 255 opaque
+        s.fill(p.Color('red'))
+        screen.blit(s, (col * SQ_SIZE, row * SQ_SIZE))
+        # Draw border
+        p.draw.rect(screen, p.Color('red'), p.Rect(col * SQ_SIZE, row * SQ_SIZE, SQ_SIZE, SQ_SIZE), 2)
 
 """
 Draw squares on the board. The top left square is always light.
