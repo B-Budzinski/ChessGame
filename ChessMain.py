@@ -3,7 +3,7 @@ This is the main driver file. It will be responsible for handling user input and
 """
 
 import pygame as p
-import ChessEngine  # we are inside the same directory, hence no 'from ChessGame import ChessEngine' :)
+import src.ChessEngine as ChessEngine  # we are inside the same directory, hence no 'from ChessGame import ChessEngine' :)
 import logging as log
 
 log.basicConfig(
