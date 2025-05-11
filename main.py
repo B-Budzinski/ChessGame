@@ -3,8 +3,12 @@ This is the main driver file. It will be responsible for handling user input and
 """
 import logging as log
 import pygame as p
-import src.game_engine as game_engine  # we are inside the same directory, hence no 'from ChessGame import ChessEngine' :)
-from src.constants import WIDTH, HEIGHT, SQ_SIZE, MAX_FPS, IMAGES, DIMENSION, Square
+import src.game_engine as game_engine
+from src.constants import (
+    GameConstants, 
+    UIConstants, 
+    IMAGES, 
+    Square)
 
 log.basicConfig(
     level=log.DEBUG,
@@ -28,7 +32,7 @@ def loadImages():
     pieces = ["wp", "wR", "wN", "wB", "wK", "wQ", "bp", "bR", "bN", "bB", "bK", "bQ"]
     for piece in pieces:
         IMAGES[piece] = p.transform.scale(
-            p.image.load("images/" + piece + ".png"), (SQ_SIZE, SQ_SIZE)
+            p.image.load("images/" + piece + ".png"), (int(GameConstants.SQ_SIZE), int(GameConstants.SQ_SIZE))
         )
     # Note: we can access an image by saying 'IMAGES['wp']'
 
@@ -40,15 +44,15 @@ The main driver for out code. This will handle user input and update the graphic
 
 def showPromotionDialog(screen, is_white_turn):
     """Show dialog for pawn promotion piece selection"""
-    dialog_width = SQ_SIZE * 4
-    dialog_height = SQ_SIZE
-    dialog_x = (WIDTH - dialog_width) // 2
-    dialog_y = (HEIGHT - dialog_height) // 2
+    dialog_width = int(GameConstants.SQ_SIZE) * UIConstants.PROMOTION_DIALOG_WIDTH_SQUARES
+    dialog_height = int(GameConstants.SQ_SIZE) * UIConstants.PROMOTION_DIALOG_HEIGHT_SQUARES
+    dialog_x = (int(GameConstants.WIDTH) - dialog_width) // 2
+    dialog_y = (int(GameConstants.HEIGHT) - dialog_height) // 2
     
     # Draw dialog background
     dialog_surface = p.Surface((dialog_width, dialog_height))
     dialog_surface.fill(p.Color('white'))
-    p.draw.rect(dialog_surface, p.Color('black'), p.Rect(0, 0, dialog_width, dialog_height), 2)
+    p.draw.rect(dialog_surface, p.Color('black'), p.Rect(0, 0, dialog_width, dialog_height), UIConstants.BORDER_WIDTH)
     
     # Available pieces for promotion
     color_prefix = 'w' if is_white_turn else 'b'
@@ -58,8 +62,8 @@ def showPromotionDialog(screen, is_white_turn):
     # Draw piece options
     for i, piece in enumerate(pieces):
         piece_img = IMAGES[color_prefix + piece]
-        x = i * SQ_SIZE
-        piece_rects.append(p.Rect(dialog_x + x, dialog_y, SQ_SIZE, SQ_SIZE))
+        x = i * int(GameConstants.SQ_SIZE)
+        piece_rects.append(p.Rect(dialog_x + x, dialog_y, int(GameConstants.SQ_SIZE), int(GameConstants.SQ_SIZE)))
         dialog_surface.blit(piece_img, (x, 0))
     
     screen.blit(dialog_surface, (dialog_x, dialog_y))
@@ -77,8 +81,7 @@ def showPromotionDialog(screen, is_white_turn):
     return color_prefix + 'Q'  # Default to Queen if dialog is closed
 
 def main():
-
-    screen = p.display.set_mode((WIDTH, HEIGHT))
+    screen = p.display.set_mode((int(GameConstants.WIDTH), int(GameConstants.HEIGHT)))
     clock = p.time.Clock()
     screen.fill(p.Color("white"))
     gs = game_engine.GameState()
@@ -97,8 +100,8 @@ def main():
             # mouse handler
             elif e.type == p.MOUSEBUTTONDOWN:
                 location = p.mouse.get_pos()  # (x,y) location of mouse
-                col = location[0] // SQ_SIZE
-                row = location[1] // SQ_SIZE
+                col = location[0] // int(GameConstants.SQ_SIZE)
+                row = location[1] // int(GameConstants.SQ_SIZE)
 
                 if sqSelected == (row, col):  # if the user clicked the same square
                     log.debug(f"Square deselected at position: ({row}, {col})")
@@ -137,7 +140,7 @@ def main():
                     gs.undoMove()
 
         drawGameState(screen, gs, sqSelected)
-        clock.tick(MAX_FPS)
+        clock.tick(int(GameConstants.MAX_FPS))
         p.display.flip()
 
 
@@ -156,12 +159,12 @@ Highlight the selected square with a red border
 def highlightSquare(screen, square):
     if square != ():  # if square is selected
         row, col = square
-        s = p.Surface((SQ_SIZE, SQ_SIZE))
-        s.set_alpha(100)  # transparency value -> 0 transparent; 255 opaque
+        s = p.Surface((int(GameConstants.SQ_SIZE), int(GameConstants.SQ_SIZE)))
+        s.set_alpha(UIConstants.TRANSPARENCY_ALPHA)  # transparency value -> 0 transparent; 255 opaque
         s.fill(p.Color('red'))
-        screen.blit(s, (col * SQ_SIZE, row * SQ_SIZE))
+        screen.blit(s, (col * int(GameConstants.SQ_SIZE), row * int(GameConstants.SQ_SIZE)))
         # Draw border
-        p.draw.rect(screen, p.Color('red'), p.Rect(col * SQ_SIZE, row * SQ_SIZE, SQ_SIZE, SQ_SIZE), 2)
+        p.draw.rect(screen, p.Color('red'), p.Rect(col * int(GameConstants.SQ_SIZE), row * int(GameConstants.SQ_SIZE), int(GameConstants.SQ_SIZE), int(GameConstants.SQ_SIZE)), UIConstants.BORDER_WIDTH)
 
 """
 Draw squares on the board. The top left square is always light.
@@ -171,13 +174,13 @@ If you add up the x, y positions of a square and the result is even it's a light
 
 def drawBoard(screen):
     colors = [p.Color("white"), p.Color("gray")]
-    for r in range(DIMENSION):
-        for c in range(DIMENSION):
+    for r in range(int(GameConstants.DIMENSION)):
+        for c in range(int(GameConstants.DIMENSION)):
             color = colors[
                 ((r + c) % 2)
-            ]  # if the remainder for division by 2 is 0 we will pick colors[0] (light color), if 1 we will pick colors[1] (dark color)
+            ]  # if even, pick light color (colors[LIGHT]), if odd pick dark color (colors[DARK])
             p.draw.rect(
-                screen, color, p.Rect(c * SQ_SIZE, r * SQ_SIZE, SQ_SIZE, SQ_SIZE)
+                screen, color, p.Rect(c * int(GameConstants.SQ_SIZE), r * int(GameConstants.SQ_SIZE), int(GameConstants.SQ_SIZE), int(GameConstants.SQ_SIZE))
             )
 
 
@@ -187,12 +190,12 @@ Draw the pieces on the board using the current GameState.board
 
 
 def drawPieces(screen, board):
-    for r in range(DIMENSION):
-        for c in range(DIMENSION):
+    for r in range(int(GameConstants.DIMENSION)):
+        for c in range(int(GameConstants.DIMENSION)):
             piece = board[r][c]
             if piece != "--":  # not empty square
                 screen.blit(
-                    IMAGES[piece], p.Rect(c * SQ_SIZE, r * SQ_SIZE, SQ_SIZE, SQ_SIZE)
+                    IMAGES[piece], p.Rect(c * int(GameConstants.SQ_SIZE), r * int(GameConstants.SQ_SIZE), int(GameConstants.SQ_SIZE), int(GameConstants.SQ_SIZE))
                 )
 
 

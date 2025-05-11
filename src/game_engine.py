@@ -2,7 +2,7 @@
 This class is responsible for storing all of the info about the current state of a chess game. It will also be responsible for determining the valid moves at the current state. It will also keep a move log.
 """
 import logging as log
-from src.constants import Square, Player, PieceType
+from src.constants import Square, Player, PieceType, BoardPositions
 from src.move_validation import MoveValidatorFactory
 
 class RookMove:
@@ -13,11 +13,28 @@ class RookMove:
         self.endCol = endCol
 
 class Move:
-    # maps keys to values;
-    # key : value
-    ranksToRows = {"1": 7, "2": 6, "3": 5, "4": 4, "5": 3, "6": 2, "7": 1, "8": 0}
+    # maps keys to values using BoardPositions enum
+    ranksToRows = {
+        "1": BoardPositions.FIRST_RANK,
+        "2": BoardPositions.SECOND_RANK,
+        "3": BoardPositions.THIRD_RANK,
+        "4": BoardPositions.FOURTH_RANK,
+        "5": BoardPositions.FIFTH_RANK,
+        "6": BoardPositions.SIXTH_RANK,
+        "7": BoardPositions.SEVENTH_RANK,
+        "8": BoardPositions.EIGHTH_RANK
+    }
     rowsToRanks = {v: k for k, v in ranksToRows.items()}
-    filesToCols = {"a": 0, "b": 1, "c": 2, "d": 3, "e": 4, "f": 5, "g": 6, "h": 7}
+    filesToCols = {
+        "a": BoardPositions.FIRST_FILE,
+        "b": BoardPositions.SECOND_FILE,
+        "c": BoardPositions.THIRD_FILE,
+        "d": BoardPositions.FOURTH_FILE,
+        "e": BoardPositions.FIFTH_FILE,
+        "f": BoardPositions.SIXTH_FILE,
+        "g": BoardPositions.SEVENTH_FILE,
+        "h": BoardPositions.EIGHTH_FILE
+    }
     colsToFiles = {v: k for k, v in filesToCols.items()}
     
     def __init__(self, startSq, endSq, gameState):
@@ -88,8 +105,32 @@ class GameState:
         """
         Takes Move as parameter and determines if it's valid
         """
-        piece_color = Square(move.pieceMoved)[0]  # Get the first character (player color)
-        piece_type = Square(move.pieceMoved)[1]   # Get the second character (piece type)
+        log.debug(f"Validating move - Piece moved: {move.pieceMoved}, From: ({move.startRow}, {move.startCol}), To: ({move.endRow}, {move.endCol})")
+        
+        piece_str = move.pieceMoved.value  # Get the actual string value from the enum
+        log.debug(f"Piece string representation: {piece_str}")
+        
+        piece_color = piece_str[0]  # First character is the color (w/b)
+        piece_type_char = piece_str[1]  # Second character is the piece type
+        log.debug(f"Extracted color: {piece_color}, type char: {piece_type_char}")
+        
+        # Map the character to PieceType enum
+        piece_type_map = {
+            'K': PieceType.KING,
+            'Q': PieceType.QUEEN,
+            'B': PieceType.BISHOP,
+            'N': PieceType.KNIGHT,
+            'R': PieceType.ROOK,
+            'p': PieceType.PAWN
+        }
+        
+        try:
+            piece_type = piece_type_map[piece_type_char]
+            log.debug(f"Mapped to piece type: {piece_type}")
+        except KeyError:
+            log.error(f"Failed to map piece type character: {piece_type_char}")
+            move.valid = False
+            return
         
         # First check if it's the correct player's turn
         if (self.whiteToMove and piece_color != Player.WHITE) or (not self.whiteToMove and piece_color != Player.BLACK):
@@ -98,8 +139,13 @@ class GameState:
             return
 
         validator = MoveValidatorFactory.get_validator(piece_type)
-        move.valid = validator.validate(move) if validator else False
-        log.debug(f"Move validation for {piece_type} from {(move.startRow, move.startCol)} to {(move.endRow, move.endCol)}: {'Valid' if move.valid else 'Invalid'}")
+        if validator is None:
+            log.error(f"No validator found for piece type: {piece_type}")
+            move.valid = False
+            return
+            
+        move.valid = validator.validate(move)
+        log.debug(f"Move validation result for {piece_type} from {(move.startRow, move.startCol)} to {(move.endRow, move.endCol)}: {'Valid' if move.valid else 'Invalid'}")
 
     def swap_players(self):
         """
