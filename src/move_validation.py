@@ -52,7 +52,7 @@ class PawnMoveValidator(MoveValidator):
         if (piece_color == Player.WHITE and move.endRow == 0) or \
            (piece_color == Player.BLACK and move.endRow == 7):
             move.isPawnPromotion = True
-            move.promotedPiece = Square.wQ if piece_color == Player.WHITE else Square.bQ
+            # promotedPiece will be set later when user selects the piece
         
         # Normal one-square move
         if move.pieceCaptured == Square.EMPTY and (

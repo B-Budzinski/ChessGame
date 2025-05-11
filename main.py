@@ -4,7 +4,7 @@ This is the main driver file. It will be responsible for handling user input and
 import logging as log
 import pygame as p
 import src.game_engine as game_engine  # we are inside the same directory, hence no 'from ChessGame import ChessEngine' :)
-from src.constants import WIDTH, HEIGHT, SQ_SIZE, MAX_FPS, IMAGES, DIMENSION
+from src.constants import WIDTH, HEIGHT, SQ_SIZE, MAX_FPS, IMAGES, DIMENSION, Square
 
 log.basicConfig(
     level=log.DEBUG,
@@ -37,6 +37,44 @@ def loadImages():
 The main driver for out code. This will handle user input and update the graphics
 """
 
+
+def showPromotionDialog(screen, is_white_turn):
+    """Show dialog for pawn promotion piece selection"""
+    dialog_width = SQ_SIZE * 4
+    dialog_height = SQ_SIZE
+    dialog_x = (WIDTH - dialog_width) // 2
+    dialog_y = (HEIGHT - dialog_height) // 2
+    
+    # Draw dialog background
+    dialog_surface = p.Surface((dialog_width, dialog_height))
+    dialog_surface.fill(p.Color('white'))
+    p.draw.rect(dialog_surface, p.Color('black'), p.Rect(0, 0, dialog_width, dialog_height), 2)
+    
+    # Available pieces for promotion
+    color_prefix = 'w' if is_white_turn else 'b'
+    pieces = ['Q', 'R', 'B', 'N']
+    piece_rects = []
+    
+    # Draw piece options
+    for i, piece in enumerate(pieces):
+        piece_img = IMAGES[color_prefix + piece]
+        x = i * SQ_SIZE
+        piece_rects.append(p.Rect(dialog_x + x, dialog_y, SQ_SIZE, SQ_SIZE))
+        dialog_surface.blit(piece_img, (x, 0))
+    
+    screen.blit(dialog_surface, (dialog_x, dialog_y))
+    p.display.flip()
+    
+    # Wait for user selection
+    waiting = True
+    while waiting:
+        for e in p.event.get():
+            if e.type == p.MOUSEBUTTONDOWN:
+                mouse_pos = p.mouse.get_pos()
+                for i, rect in enumerate(piece_rects):
+                    if rect.collidepoint(mouse_pos):
+                        return color_prefix + pieces[i]
+    return color_prefix + 'Q'  # Default to Queen if dialog is closed
 
 def main():
 
@@ -79,6 +117,9 @@ def main():
                     log.debug(f"Attempting move from {playerClicks[0]} to {playerClicks[1]}")
                     gs.checkMoveValidity(move)
                     if move.valid:  # check move validity
+                        if move.isPawnPromotion:
+                            promoted_piece = showPromotionDialog(screen, gs.whiteToMove)
+                            move.promotedPiece = getattr(Square, promoted_piece)
                         gs.makeMove(move)
                         sqSelected = ()  # reset user clicks
                         playerClicks = []
