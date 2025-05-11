@@ -1,88 +1,25 @@
 """
-This class is responsible for storing all of the info about the current state of a chess game. It will also be responsible for determining the valid moves at the current state. It will also keep a move log.
+This module is responsible for storing and managing the current state of a chess game,
+including move validation, game state updates, and special move handling.
 """
 import logging as log
-from src.constants import Square, Player, PieceType, BoardPositions
+from typing import Optional, List, Tuple
+from src.constants import Square, Player, PieceType
 from src.move_validation import MoveValidatorFactory
-
-class RookMove:
-    def __init__(self, startRow=None, startCol=None, endRow=None, endCol=None):
-        self.startRow = startRow
-        self.startCol = startCol
-        self.endRow = endRow
-        self.endCol = endCol
-
-class Move:
-    # maps keys to values using BoardPositions enum
-    ranksToRows = {
-        "1": BoardPositions.FIRST_RANK,
-        "2": BoardPositions.SECOND_RANK,
-        "3": BoardPositions.THIRD_RANK,
-        "4": BoardPositions.FOURTH_RANK,
-        "5": BoardPositions.FIFTH_RANK,
-        "6": BoardPositions.SIXTH_RANK,
-        "7": BoardPositions.SEVENTH_RANK,
-        "8": BoardPositions.EIGHTH_RANK
-    }
-    rowsToRanks = {v: k for k, v in ranksToRows.items()}
-    filesToCols = {
-        "a": BoardPositions.FIRST_FILE,
-        "b": BoardPositions.SECOND_FILE,
-        "c": BoardPositions.THIRD_FILE,
-        "d": BoardPositions.FOURTH_FILE,
-        "e": BoardPositions.FIFTH_FILE,
-        "f": BoardPositions.SIXTH_FILE,
-        "g": BoardPositions.SEVENTH_FILE,
-        "h": BoardPositions.EIGHTH_FILE
-    }
-    colsToFiles = {v: k for k, v in filesToCols.items()}
-    
-    def __init__(self, startSq, endSq, gameState):
-        self.startRow = startSq[0]
-        self.startCol = startSq[1]
-        self.endRow = endSq[0]
-        self.endCol = endSq[1]
-        self.gameState = gameState  # Store reference to full game state
-        self.board = gameState.board  # Keep board reference for compatibility
-        self.pieceMoved = gameState.board[self.startRow][self.startCol]
-        self.pieceCaptured = gameState.board[self.endRow][self.endCol]
-        self.valid = True
-        
-        # Special move flags
-        self.isCastling = False
-        self.isEnPassant = False
-        self.isPawnPromotion = False
-        
-        # For castling - store rook move
-        self.rookMove = RookMove()
-        
-        # For en passant - store captured pawn position
-        self.enPassantCaptureRow = None
-        self.enPassantCaptureCol = None
-        
-        # For pawn promotion - store promoted piece
-        self.promotedPiece = None
-
-    def getRankFile(self, r, c):
-        return self.colsToFiles[c] + self.rowsToRanks[r]
-    
-    def getChessNotation(self):
-        # not really a chess notation because there's a lot more logic going into it, which doesn't matter at this point
-        return self.getRankFile(self.startRow, self.startCol) + self.getRankFile(
-            self.endRow, self.endCol
-        )
+from src.moves import Move
 
 class CastlingRights:
-    def __init__(self, white_can_castle=True, black_can_castle=True):
-        self.white_can_castle = white_can_castle  # Whether white king can still castle
-        self.black_can_castle = black_can_castle  # Whether black king can still castle
+    def __init__(self, white_can_castle: bool = True, black_can_castle: bool = True):
+        self.white_can_castle = white_can_castle
+        self.black_can_castle = black_can_castle
 
 class GameState:
     """
-    The board is represented by a two dimentional list of lists(8x8). Each list represents a row on a chessboard.
-    Each element is an enum value from the Square enum representing the piece and its color.
+    Represents the current state of a chess game, including the board position,
+    move history, and special conditions like castling rights and en-passant possibilities.
     """
     def __init__(self):
+        # Board initialization
         self.board = [
             [Square.bR, Square.bN, Square.bB, Square.bQ, 
              Square.bK, Square.bB, Square.bN, Square.bR],
@@ -95,21 +32,23 @@ class GameState:
             [Square.wR, Square.wN, Square.wB, Square.wQ, 
              Square.wK, Square.wB, Square.wN, Square.wR],
         ]
-        self.whiteToMove = True
-        self.moveLog = []
-        self.enPassantPossible = ()  # Keeps track of possible en passant square
+        
+        # Game state flags
+        self.whiteToMove: bool = True
+        self.moveLog: List[Move] = []
+        self.enPassantPossible: Tuple[int, int] = ()
         self.castlingRights = CastlingRights()
+        
+        # Game status flags
+        self.in_check: bool = False
+        self.checkmate: bool = False
+        self.stalemate: bool = False
+        
         log.info("New game state initialized")
-        self.in_check = False
-        self.checkmate = False
-        self.stalemate = False
 
+    # Position and attack validation methods
     def is_square_under_attack(self, row: int, col: int, by_white: bool) -> bool:
-        """
-        Check if a square is under attack by any opponent piece
-        This method uses basic piece movement rules without the check validation
-        to avoid infinite recursion
-        """
+        """Check if a square is under attack by any opponent piece."""
         opponent_pieces = []
         for piece in Square:
             if piece.name[0] == 'w' and by_white:
@@ -117,91 +56,124 @@ class GameState:
             elif piece.name[0] == 'b' and not by_white:
                 opponent_pieces.append(piece)
 
-        # Try moving each opponent piece to the target square
         for r in range(8):
             for c in range(8):
                 piece = self.board[r][c]
                 if piece in opponent_pieces:
                     test_move = Move((r, c), (row, col), self)
-                    
-                    # Get piece type for basic move validation
-                    piece_type_char = Square(piece).name[1].lower()
-                    piece_type_map = {
-                        'r': PieceType.ROOK,
-                        'n': PieceType.KNIGHT,
-                        'b': PieceType.BISHOP,
-                        'q': PieceType.QUEEN,
-                        'k': PieceType.KING,
-                        'p': PieceType.PAWN
-                    }
-                    piece_type = piece_type_map.get(piece_type_char)
-                    
+                    piece_type = self._get_piece_type(piece)
                     if piece_type:
                         validator = MoveValidatorFactory.get_validator(piece_type)
                         if validator and validator.validate(test_move):
                             return True
         return False
 
-    def get_king_position(self) -> tuple:
-        """Helper method to find the current player's king position"""
+    def get_king_position(self) -> Optional[Tuple[int, int]]:
+        """Find the current player's king position."""
         king_piece = Square.wK if self.whiteToMove else Square.bK
         for r in range(8):
             for c in range(8):
                 if self.board[r][c] == king_piece:
                     return (r, c)
-        return None  # Should never happen in a valid game
+        return None
 
     def is_in_check(self) -> bool:
-        """
-        Check if the current player's king is in check
-        """
+        """Check if the current player's king is in check."""
         king_pos = self.get_king_position()
         if king_pos:
             return self.is_square_under_attack(king_pos[0], king_pos[1], not self.whiteToMove)
         return False
 
+    # Move validation and execution methods
     def would_move_cause_check(self, move: Move) -> bool:
-        """
-        Test if making a move would put or leave own king in check
-        """
-        # Store original board state
+        """Test if making a move would put or leave own king in check."""
         original_board = [row[:] for row in self.board]
         original_white_to_move = self.whiteToMove
         
-        # Make move temporarily
-        self.board[move.startRow][move.startCol] = Square.EMPTY
-        self.board[move.endRow][move.endCol] = move.pieceMoved
-
-        # Special handling for castling
-        if move.isCastling:
-            rook_start = (move.rookMove.startRow, move.rookMove.startCol)
-            rook_end = (move.rookMove.endRow, move.rookMove.endCol)
-            rook_piece = original_board[rook_start[0]][rook_start[1]]
-            self.board[rook_start[0]][rook_start[1]] = Square.EMPTY
-            self.board[rook_end[0]][rook_end[1]] = rook_piece
-
-        # Check if king is in check
+        self._apply_move_to_board(move)
         result = self.is_in_check()
-
-        # Restore original board state
+        
         self.board = [row[:] for row in original_board]
         self.whiteToMove = original_white_to_move
-
         return result
 
-    def checkMoveValidity(self, move: Move):
-        """
-        Takes Move as parameter and determines if it's valid
-        """
+    def checkMoveValidity(self, move: Move) -> None:
+        """Validate a move according to piece rules and check conditions."""
         piece_type_char = Square(move.pieceMoved).name[1].lower()
-        piece_color = Square(move.pieceMoved)[0]
+        piece_color = Square(move.pieceMoved).name[0]
         
-        # First check if it's the correct player's turn
-        if (self.whiteToMove and piece_color != Player.WHITE) or (not self.whiteToMove and piece_color != Player.BLACK):
+        if not self._is_correct_turn(piece_color):
             move.valid = False
             log.warning(f"Invalid turn: {'White' if self.whiteToMove else 'Black'} to move, but {piece_color} piece selected")
             return
 
+        piece_type = self._get_piece_type(move.pieceMoved)
+        if not piece_type:
+            move.valid = False
+            return
+
+        validator = MoveValidatorFactory.get_validator(piece_type)
+        if not validator:
+            log.error(f"No validator found for piece type: {piece_type}")
+            move.valid = False
+            return
+
+        move.valid = validator.validate(move) and not self.would_move_cause_check(move)
+        log.debug(f"Move validation result for {piece_type} from {(move.startRow, move.startCol)} to {(move.endRow, move.endCol)}: {'Valid' if move.valid else 'Invalid'}")
+
+    def makeMove(self, move: Move) -> None:
+        """Execute a validated move and update game state."""
+        if not move.valid:
+            return
+
+        # Store state for potential undo
+        previous_state = self._store_previous_state()
+        
+        # Reset en passant possibility
+        self.enPassantPossible = ()
+
+        if move.isCastling:
+            self._execute_castling_move(move)
+        elif move.isEnPassant:
+            self._execute_en_passant_move(move)
+        else:
+            self._execute_regular_move(move)
+
+        # Update en passant possibility for pawn double moves
+        self._update_en_passant_possibility(move)
+        
+        # Update castling rights
+        self.updateCastlingRights(move)
+        
+        # Log move and update game state
+        move.previousEnPassantPossible = previous_state["enPassantPossible"]
+        move.previousCastlingRights = previous_state["castlingRights"]
+        self.moveLog.append(move)
+        self.swap_players()
+        self.update_game_state()
+
+    def undoMove(self) -> None:
+        """Undo the last move and restore previous game state."""
+        if not self.moveLog:
+            log.warning("Attempted to undo move but no moves in log")
+            return
+            
+        move = self.moveLog.pop()
+        if move.isCastling:
+            self._undo_castling_move(move)
+        elif move.isEnPassant:
+            self._undo_en_passant_move(move)
+        else:
+            self._undo_regular_move(move)
+
+        # Restore previous state
+        self.enPassantPossible = move.previousEnPassantPossible
+        self.castlingRights = move.previousCastlingRights
+        self.swap_players()
+
+    # Helper methods
+    def _get_piece_type(self, piece: Square) -> Optional[PieceType]:
+        """Map a piece to its corresponding PieceType."""
         piece_type_map = {
             'r': PieceType.ROOK,
             'n': PieceType.KNIGHT,
@@ -210,183 +182,120 @@ class GameState:
             'k': PieceType.KING,
             'p': PieceType.PAWN
         }
-        
         try:
-            piece_type = piece_type_map[piece_type_char]
-            log.debug(f"Mapped to piece type: {piece_type}")
+            return piece_type_map[piece.name[1].lower()]
         except KeyError:
-            log.error(f"Failed to map piece type character: {piece_type_char}")
-            move.valid = False
-            return
+            log.error(f"Failed to map piece type for: {piece}")
+            return None
 
-        validator = MoveValidatorFactory.get_validator(piece_type)
-        if validator is None:
-            log.error(f"No validator found for piece type: {piece_type}")
-            move.valid = False
-            return
+    def _is_correct_turn(self, piece_color: str) -> bool:
+        """Check if it's the correct player's turn."""
+        return ((self.whiteToMove and piece_color == 'w') or 
+                (not self.whiteToMove and piece_color == 'b'))
 
-        # First validate the move according to piece rules
-        move.valid = validator.validate(move)
-        
-        # Then check if the move would leave/put own king in check
-        if move.valid:
-            if self.would_move_cause_check(move):
-                move.valid = False
-                log.debug("Move would result in check - invalid")
+    def _store_previous_state(self) -> dict:
+        """Store current state for potential undo."""
+        return {
+            "enPassantPossible": self.enPassantPossible,
+            "castlingRights": CastlingRights(
+                self.castlingRights.white_can_castle,
+                self.castlingRights.black_can_castle
+            )
+        }
 
-        log.debug(f"Move validation result for {piece_type} from {(move.startRow, move.startCol)} to {(move.endRow, move.endCol)}: {'Valid' if move.valid else 'Invalid'}")
+    def _apply_move_to_board(self, move: Move) -> None:
+        """Apply a move to the board without state updates."""
+        self.board[move.startRow][move.startCol] = Square.EMPTY
+        if move.isPawnPromotion:
+            self.board[move.endRow][move.endCol] = move.promotedPiece
+        else:
+            self.board[move.endRow][move.endCol] = move.pieceMoved
 
-    def swap_players(self):
-        """
-        Swaps the players
-        """
+    def _execute_castling_move(self, move: Move) -> None:
+        """Execute a castling move."""
+        self.board[move.startRow][move.startCol] = Square.EMPTY
+        self.board[move.endRow][move.endCol] = move.pieceMoved
+        self.board[move.rookMove.startRow][move.rookMove.startCol] = Square.EMPTY
+        self.board[move.rookMove.endRow][move.rookMove.endCol] = \
+            Square.wR if move.pieceMoved == Square.wK else Square.bR
+
+    def _execute_en_passant_move(self, move: Move) -> None:
+        """Execute an en passant move."""
+        self.board[move.startRow][move.startCol] = Square.EMPTY
+        self.board[move.endRow][move.endCol] = move.pieceMoved
+        self.board[move.enPassantCaptureRow][move.enPassantCaptureCol] = Square.EMPTY
+        move.pieceCaptured = Square.wp if move.pieceMoved == Square.bp else Square.bp
+
+    def _execute_regular_move(self, move: Move) -> None:
+        """Execute a regular move or pawn promotion."""
+        self._apply_move_to_board(move)
+
+    def _undo_castling_move(self, move: Move) -> None:
+        """Undo a castling move."""
+        self.board[move.startRow][move.startCol] = move.pieceMoved
+        self.board[move.endRow][move.endCol] = Square.EMPTY
+        self.board[move.rookMove.startRow][move.rookMove.startCol] = \
+            Square.wR if move.pieceMoved == Square.wK else Square.bR
+        self.board[move.rookMove.endRow][move.rookMove.endCol] = Square.EMPTY
+
+    def _undo_en_passant_move(self, move: Move) -> None:
+        """Undo an en passant move."""
+        self.board[move.startRow][move.startCol] = move.pieceMoved
+        self.board[move.endRow][move.endCol] = Square.EMPTY
+        self.board[move.enPassantCaptureRow][move.enPassantCaptureCol] = move.pieceCaptured
+
+    def _undo_regular_move(self, move: Move) -> None:
+        """Undo a regular move or pawn promotion."""
+        self.board[move.startRow][move.startCol] = move.pieceMoved
+        self.board[move.endRow][move.endCol] = move.pieceCaptured
+
+    def _update_en_passant_possibility(self, move: Move) -> None:
+        """Update en passant possibility after a pawn move."""
+        if (move.pieceMoved in (Square.wp, Square.bp) and 
+            abs(move.endRow - move.startRow) == 2):
+            self.enPassantPossible = ((move.startRow + move.endRow) // 2, move.startCol)
+
+    def swap_players(self) -> None:
+        """Switch the active player."""
         self.whiteToMove = not self.whiteToMove
         log.debug(f"Turn changed: {'White' if self.whiteToMove else 'Black'} to move")
 
-    def makeMove(self, move):
-        """
-        Execute the move, including special moves like castling, en passant, and pawn promotion
-        """
-        if not move.valid:
-            return
-
-        # Store current en passant state for potential undo
-        previousEnPassantPossible = self.enPassantPossible
-        previousCastlingRights = CastlingRights(
-            self.castlingRights.white_can_castle,
-            self.castlingRights.black_can_castle
-        )
-
-        # Reset en passant possibility
-        self.enPassantPossible = ()
-
-        if move.isCastling:
-            # Move the king
-            self.board[move.startRow][move.startCol] = Square.EMPTY
-            self.board[move.endRow][move.endCol] = move.pieceMoved
-            # Move the rook
-            self.board[move.rookMove.startRow][move.rookMove.startCol] = Square.EMPTY
-            self.board[move.rookMove.endRow][move.rookMove.endCol] = \
-                Square.wR if move.pieceMoved == Square.wK else Square.bR
-        
-        elif move.isEnPassant:
-            # Move the pawn
-            self.board[move.startRow][move.startCol] = Square.EMPTY
-            self.board[move.endRow][move.endCol] = move.pieceMoved
-            # Remove the captured pawn
-            self.board[move.enPassantCaptureRow][move.enPassantCaptureCol] = Square.EMPTY
-            # Store the captured piece for undo
-            move.pieceCaptured = Square.wp if move.pieceMoved == Square.bp else Square.bp
-        
-        else:
-            # Normal move or pawn promotion
-            self.board[move.startRow][move.startCol] = Square.EMPTY
-            if move.isPawnPromotion:
-                self.board[move.endRow][move.endCol] = move.promotedPiece
-            else:
-                self.board[move.endRow][move.endCol] = move.pieceMoved
-
-        # Update en passant possibility for two-square pawn moves
-        if (move.pieceMoved == Square.wp or move.pieceMoved == Square.bp) and \
-           abs(move.endRow - move.startRow) == 2:
-            self.enPassantPossible = ((move.startRow + move.endRow) // 2, move.startCol)
-
-        # Update castling rights
-        self.updateCastlingRights(move)
-        
-        # Log the move and swap players
-        move.previousEnPassantPossible = previousEnPassantPossible
-        move.previousCastlingRights = previousCastlingRights
-        self.moveLog.append(move)
-        self.swap_players()
-        
-        # After making the move and swapping players, update game state
-        self.update_game_state()
-
-    def undoMove(self):
-        """
-        Undo the last move, including special moves
-        """
-        if not self.moveLog:
-            log.warning("Attempted to undo move but no moves in log")
-            return
-            
-        move = self.moveLog.pop()
-        if move.isCastling:
-            # Restore king
-            self.board[move.startRow][move.startCol] = move.pieceMoved
-            self.board[move.endRow][move.endCol] = Square.EMPTY
-            # Restore rook
-            self.board[move.rookMove.startRow][move.rookMove.startCol] = \
-                Square.wR if move.pieceMoved == Square.wK else Square.bR
-            self.board[move.rookMove.endRow][move.rookMove.endCol] = Square.EMPTY
-        
-        elif move.isEnPassant:
-            # Restore moving pawn
-            self.board[move.startRow][move.startCol] = move.pieceMoved
-            self.board[move.endRow][move.endCol] = Square.EMPTY
-            # Restore captured pawn
-            self.board[move.enPassantCaptureRow][move.enPassantCaptureCol] = move.pieceCaptured
-        
-        else:
-            # Normal move or pawn promotion
-            self.board[move.startRow][move.startCol] = move.pieceMoved
-            self.board[move.endRow][move.endCol] = move.pieceCaptured
-
-        # Restore en passant state
-        self.enPassantPossible = move.previousEnPassantPossible
-        # Restore castling rights
-        self.castlingRights = move.previousCastlingRights
-        self.swap_players()
-
-    def updateCastlingRights(self, move):
-        """
-        Update castling rights based on the move
-        """
-        # If king moves or castles, lose castling rights
+    def updateCastlingRights(self, move: Move) -> None:
+        """Update castling rights based on piece moves."""
+        # King moves
         if move.pieceMoved == Square.wK or move.isCastling:
             self.castlingRights.white_can_castle = False
         elif move.pieceMoved == Square.bK or move.isCastling:
             self.castlingRights.black_can_castle = False
-        # If rook moves or is captured, lose that side's castling right
-        elif move.pieceMoved == Square.wR:
-            if move.startRow == 7:
-                if move.startCol == 0:
-                    self.castlingRights.white_can_castle = False
-                elif move.startCol == 7:
-                    self.castlingRights.white_can_castle = False
-        elif move.pieceMoved == Square.bR:
-            if move.startRow == 0:
-                if move.startCol == 0:
-                    self.castlingRights.black_can_castle = False
-                elif move.startCol == 7:
-                    self.castlingRights.black_can_castle = False
-        # If rook is captured
-        if move.pieceCaptured == Square.wR:
-            if move.endRow == 7:
-                if move.endCol == 0:
-                    self.castlingRights.white_can_castle = False
-                elif move.endCol == 7:
-                    self.castlingRights.white_can_castle = False
-        elif move.pieceCaptured == Square.bR:
-            if move.endRow == 0:
-                if move.endCol == 0:
-                    self.castlingRights.black_can_castle = False
-                elif move.endCol == 7:
-                    self.castlingRights.black_can_castle = False
+        
+        # Rook moves
+        self._update_rook_castling_rights(move)
 
-    def get_all_possible_moves(self) -> list:
-        """
-        Get all possible moves for the current player
-        """
+    def _update_rook_castling_rights(self, move: Move) -> None:
+        """Update castling rights specifically for rook moves or captures."""
+        if move.pieceMoved == Square.wR and move.startRow == 7:
+            if move.startCol in (0, 7):
+                self.castlingRights.white_can_castle = False
+        elif move.pieceMoved == Square.bR and move.startRow == 0:
+            if move.startCol in (0, 7):
+                self.castlingRights.black_can_castle = False
+        
+        # Rook captures
+        if move.pieceCaptured == Square.wR and move.endRow == 7:
+            if move.endCol in (0, 7):
+                self.castlingRights.white_can_castle = False
+        elif move.pieceCaptured == Square.bR and move.endRow == 0:
+            if move.endCol in (0, 7):
+                self.castlingRights.black_can_castle = False
+
+    def get_all_possible_moves(self) -> List[Move]:
+        """Get all valid moves for the current player."""
         moves = []
         for r in range(8):
             for c in range(8):
                 piece = self.board[r][c]
-                # Check if piece belongs to current player
                 if ((self.whiteToMove and piece.name.startswith('w')) or 
                     (not self.whiteToMove and piece.name.startswith('b'))):
-                    # Try moving to every square
                     for end_r in range(8):
                         for end_c in range(8):
                             move = Move((r, c), (end_r, end_c), self)
@@ -395,14 +304,12 @@ class GameState:
                                 moves.append(move)
         return moves
 
-    def update_game_state(self):
-        """
-        Update check, checkmate, and stalemate status
-        """
+    def update_game_state(self) -> None:
+        """Update check, checkmate, and stalemate status."""
         self.in_check = self.is_in_check()
         possible_moves = self.get_all_possible_moves()
         
-        if len(possible_moves) == 0:
+        if not possible_moves:
             if self.in_check:
                 self.checkmate = True
                 log.info(f"Checkmate! {'Black' if self.whiteToMove else 'White'} wins!")
