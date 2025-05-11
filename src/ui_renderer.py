@@ -2,11 +2,33 @@ import pygame as p
 from src.constants import GameConstants, UIConstants
 
 class UIRenderer:
+    """
+    Handles all graphical rendering for the chess game.
+    
+    This class is responsible for drawing the game board, pieces, highlighting selected squares,
+    showing game state messages, and handling the pawn promotion dialog.
+    
+    Attributes:
+        screen: The pygame surface object representing the game window
+    """
+    
     def __init__(self, screen):
+        """
+        Initialize the renderer with a pygame screen surface.
+        
+        Args:
+            screen: The pygame surface to render on
+        """
         self.screen = screen
-
+        
     def draw_game_state(self, gs, sq_selected):
-        """Responsible for all the graphics within a current game state."""
+        """
+        Render the complete game state including board, pieces, and status messages.
+        
+        Args:
+            gs: Current GameState object containing board state and game conditions
+            sq_selected: Tuple of (row, col) for the currently selected square, or empty tuple
+        """
         self.draw_board()  # draw squares on the board
         if sq_selected != ():  # if a square is selected
             self.highlight_square(sq_selected)
@@ -23,7 +45,12 @@ class UIRenderer:
             self.draw_text(text)
 
     def highlight_square(self, square):
-        """Highlight the selected square with a red border"""
+        """
+        Highlight the selected square with a red border and semi-transparent overlay.
+        
+        Args:
+            square: Tuple of (row, col) coordinates of the square to highlight
+        """
         if square != ():  # if square is selected
             row, col = square
             s = p.Surface((int(GameConstants.SQ_SIZE), int(GameConstants.SQ_SIZE)))
@@ -37,7 +64,10 @@ class UIRenderer:
                        UIConstants.BORDER_WIDTH)
 
     def draw_board(self):
-        """Draw squares on the board. The top left square is always light."""
+        """
+        Draw the chess board squares in alternating colors.
+        Creates a standard 8x8 checkerboard pattern where the top-left square is light.
+        """
         colors = [p.Color("white"), p.Color("gray")]
         for r in range(int(GameConstants.DIMENSION)):
             for c in range(int(GameConstants.DIMENSION)):
@@ -49,7 +79,12 @@ class UIRenderer:
                 )
 
     def draw_pieces(self, board):
-        """Draw the pieces on the board using the current GameState.board"""
+        """
+        Draw chess pieces on the board using their corresponding images.
+        
+        Args:
+            board: 2D list representing the current board state with piece positions
+        """
         from src.resource_manager import IMAGES
         for r in range(int(GameConstants.DIMENSION)):
             for c in range(int(GameConstants.DIMENSION)):
@@ -62,7 +97,12 @@ class UIRenderer:
                     )
 
     def draw_text(self, text):
-        """Draw text in the center of the screen"""
+        """
+        Draw text centered on the screen, used for game state messages.
+        
+        Args:
+            text: The message to display
+        """
         font = p.font.Font(None, 36)
         text_surface = font.render(text, True, p.Color('black'))
         text_rect = text_surface.get_rect()
@@ -70,7 +110,18 @@ class UIRenderer:
         self.screen.blit(text_surface, text_rect)
 
     def show_promotion_dialog(self, is_white_turn):
-        """Show dialog for pawn promotion piece selection"""
+        """
+        Show a dialog for selecting a piece during pawn promotion.
+        
+        Displays a dialog with available pieces (Queen, Rook, Bishop, Knight)
+        and waits for the player to make a selection.
+        
+        Args:
+            is_white_turn: Boolean indicating if it's white's turn to promote
+            
+        Returns:
+            str: The identifier of the selected piece (e.g., 'wQ' for white queen)
+        """
         from src.resource_manager import IMAGES
         dialog_width = int(GameConstants.SQ_SIZE) * UIConstants.PROMOTION_DIALOG_WIDTH_SQUARES
         dialog_height = int(GameConstants.SQ_SIZE) * UIConstants.PROMOTION_DIALOG_HEIGHT_SQUARES

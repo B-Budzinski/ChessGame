@@ -4,19 +4,52 @@ from typing import List, Tuple
 from src.constants import Square, Player, PieceType, BoardPositions, MoveRules
 
 class MoveValidator(ABC):
+    """
+    Abstract base class for chess piece move validation.
+    
+    This class provides common validation methods used by all chess pieces
+    and defines the interface that specific piece validators must implement.
+    """
+    
     @abstractmethod
     def validate(self, move) -> bool:
+        """
+        Validate if a move is legal for a specific piece type.
+        
+        Args:
+            move: The move to validate, containing start/end positions and game state.
+            
+        Returns:
+            bool: True if the move is valid, False otherwise.
+        """
         pass
     
     def _is_path_clear(self, move, path_positions: List[Tuple[int, int]]) -> bool:
-        """Check if there are any pieces between start and end position"""
+        """
+        Check if there are any pieces between start and end position.
+        
+        Args:
+            move: The move being validated
+            path_positions: List of (row, col) tuples representing the path
+            
+        Returns:
+            bool: True if path is clear, False if blocked
+        """
         for row, col in path_positions[1:-1]:  # Exclude start and end squares
             if move.board[row][col] != Square.EMPTY:
                 return False
         return True
     
     def _is_friendly_piece_at_destination(self, move) -> bool:
-        """Check if destination contains a friendly piece"""
+        """
+        Check if destination contains a friendly piece.
+        
+        Args:
+            move: The move being validated
+            
+        Returns:
+            bool: True if a friendly piece is at the destination, False otherwise
+        """
         if move.pieceCaptured == Square.EMPTY:
             return False
         moved_piece_color = Square(move.pieceMoved)[0]
@@ -24,7 +57,15 @@ class MoveValidator(ABC):
         return moved_piece_color == captured_piece_color
 
     def _get_path_positions(self, move) -> List[Tuple[int, int]]:
-        """Get all positions between start and end (inclusive)"""
+        """
+        Get all positions between start and end (inclusive).
+        
+        Args:
+            move: The move being validated
+            
+        Returns:
+            List[Tuple[int, int]]: List of (row, col) positions along the move path
+        """
         positions = []
         row_diff = move.endRow - move.startRow
         col_diff = move.endCol - move.startCol
@@ -41,6 +82,16 @@ class MoveValidator(ABC):
         return positions
 
 class PawnMoveValidator(MoveValidator):
+    """
+    Validates pawn moves including normal moves, captures, en passant, and promotions.
+    
+    Handles:
+    - Single square forward moves
+    - Initial two-square moves
+    - Diagonal captures
+    - En passant captures
+    - Pawn promotion detection
+    """
     def validate(self, move) -> bool:
         if self._is_friendly_piece_at_destination(move):
             log.debug("Pawn validation failed: friendly piece at destination")
@@ -104,6 +155,11 @@ class PawnMoveValidator(MoveValidator):
         return False
 
 class RookMoveValidator(MoveValidator):
+    """
+    Validates rook moves along ranks and files.
+    
+    Ensures moves are strictly horizontal or vertical and path is clear.
+    """
     def validate(self, move) -> bool:
         if not (move.startRow == move.endRow or move.startCol == move.endCol):
             return False
@@ -115,6 +171,11 @@ class RookMoveValidator(MoveValidator):
         return self._is_path_clear(move, path)
 
 class KnightMoveValidator(MoveValidator):
+    """
+    Validates knight moves in L-shaped patterns.
+    
+    Ensures moves follow the 2-1 pattern and doesn't capture friendly pieces.
+    """
     def validate(self, move) -> bool:
         if self._is_friendly_piece_at_destination(move):
             return False
@@ -125,6 +186,11 @@ class KnightMoveValidator(MoveValidator):
                (row_diff == MoveRules.PAWN_REGULAR_MOVE and col_diff == MoveRules.PAWN_FIRST_MOVE)
 
 class BishopMoveValidator(MoveValidator):
+    """
+    Validates bishop moves along diagonals.
+    
+    Ensures moves are strictly diagonal and path is clear.
+    """
     def validate(self, move) -> bool:
         if abs(move.endRow - move.startRow) != abs(move.endCol - move.startCol):
             return False
@@ -136,6 +202,11 @@ class BishopMoveValidator(MoveValidator):
         return self._is_path_clear(move, path)
 
 class QueenMoveValidator(MoveValidator):
+    """
+    Validates queen moves combining rook and bishop movement patterns.
+    
+    Ensures moves are either straight or diagonal and path is clear.
+    """
     def validate(self, move) -> bool:
         # Queen combines Rook and Bishop movements
         is_straight = move.startRow == move.endRow or move.startCol == move.endCol
@@ -151,6 +222,13 @@ class QueenMoveValidator(MoveValidator):
         return self._is_path_clear(move, path)
 
 class KingMoveValidator(MoveValidator):
+    """
+    Validates king moves including normal moves and castling.
+    
+    Handles:
+    - Single square moves in any direction
+    - Kingside and queenside castling with appropriate validation
+    """
     def validate(self, move) -> bool:
         if self._is_friendly_piece_at_destination(move):
             return False
@@ -204,6 +282,13 @@ class KingMoveValidator(MoveValidator):
         return False
 
 class MoveValidatorFactory:
+    """
+    Factory class for creating appropriate move validators for each piece type.
+    
+    Maintains a mapping of piece types to their corresponding validator instances
+    and provides access through the get_validator method.
+    """
+    
     _validators = {
         PieceType.PAWN: PawnMoveValidator(),
         PieceType.ROOK: RookMoveValidator(),
@@ -212,7 +297,16 @@ class MoveValidatorFactory:
         PieceType.QUEEN: QueenMoveValidator(),
         PieceType.KING: KingMoveValidator()
     }
-
+    
     @classmethod
     def get_validator(cls, piece_type: PieceType) -> MoveValidator:
+        """
+        Get the appropriate move validator for a piece type.
+        
+        Args:
+            piece_type: The type of chess piece needing validation
+            
+        Returns:
+            MoveValidator: The validator instance for the piece type
+        """
         return cls._validators.get(piece_type)

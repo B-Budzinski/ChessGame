@@ -1,6 +1,10 @@
 from enum import StrEnum, IntEnum
 
 class GameConstants(StrEnum):
+    """
+    Basic game window and board configuration constants.
+    All values are strings for compatibility with pygame configuration.
+    """
     WIDTH = '512'
     HEIGHT = '512'
     DIMENSION = '8'
@@ -8,16 +12,31 @@ class GameConstants(StrEnum):
     MAX_FPS = '15'
 
 class UIConstants(IntEnum):
-    TRANSPARENCY_ALPHA = 100
-    BORDER_WIDTH = 2
-    PROMOTION_DIALOG_WIDTH_SQUARES = 4
-    PROMOTION_DIALOG_HEIGHT_SQUARES = 1
+    """
+    User interface rendering constants for visual elements.
+    """
+    TRANSPARENCY_ALPHA = 100  # Alpha value for semi-transparent UI elements
+    BORDER_WIDTH = 2  # Width of borders in pixels
+    PROMOTION_DIALOG_WIDTH_SQUARES = 4  # Width of pawn promotion dialog in squares
+    PROMOTION_DIALOG_HEIGHT_SQUARES = 1  # Height of pawn promotion dialog in squares
 
 class ColorIndices(IntEnum):
+    """
+    Indices for chess board square colors.
+    Used in rendering the checkerboard pattern.
+    """
     LIGHT = 0
     DARK = 1
 
 class BoardPositions(IntEnum):
+    """
+    Chess board coordinate system constants.
+    
+    Ranks (rows) are numbered 0-7 from top to bottom.
+    Files (columns) are numbered 0-7 from left to right.
+    Special positions for specific piece setups are also defined.
+    """
+    # Ranks (rows)
     FIRST_RANK = 7
     SECOND_RANK = 6
     THIRD_RANK = 5
@@ -27,6 +46,7 @@ class BoardPositions(IntEnum):
     SEVENTH_RANK = 1
     EIGHTH_RANK = 0
     
+    # Files (columns)
     FIRST_FILE = 0
     SECOND_FILE = 1
     THIRD_FILE = 2
@@ -35,38 +55,55 @@ class BoardPositions(IntEnum):
     SIXTH_FILE = 5
     SEVENTH_FILE = 6
     EIGHTH_FILE = 7
-
-    # Updated to match actual board coordinates where white pawns start on rank 6
-    WHITE_PAWN_RANK = 6  # Changed from SEVENTH_RANK
+    
+    # Special positions
+    WHITE_PAWN_RANK = 6
     BLACK_PAWN_RANK = 1
-    WHITE_PIECES_RANK = 7  # Changed from EIGHTH_RANK
+    WHITE_PIECES_RANK = 7
     BLACK_PIECES_RANK = 0
     KING_START_FILE = FIFTH_FILE
     KINGSIDE_ROOK_FILE = EIGHTH_FILE
     QUEENSIDE_ROOK_FILE = FIRST_FILE
 
 class MoveRules(IntEnum):
-    PAWN_FIRST_MOVE = 2
-    PAWN_REGULAR_MOVE = 1
-    KING_CASTLING_DISTANCE = 2
-    MAX_KING_MOVE = 1
+    """
+    Constants defining legal move distances for different pieces.
+    Used in move validation.
+    """
+    PAWN_FIRST_MOVE = 2  # Number of squares a pawn can move on its first move
+    PAWN_REGULAR_MOVE = 1  # Normal pawn move distance
+    KING_CASTLING_DISTANCE = 2  # Number of squares the king moves during castling
+    MAX_KING_MOVE = 1  # Maximum distance for normal king moves
 
-IMAGES = {}  # Keep this as a dict since it's mutable and will be populated dynamically
+# Global dictionary for piece images, populated at runtime
+IMAGES = {}
 
 class PieceType(StrEnum):
+    """
+    Chess piece type identifiers.
+    Used in combination with Player enum to create unique piece identifiers.
+    """
     KING = 'K'
     QUEEN = 'Q'
     BISHOP = 'B'
     KNIGHT = 'N'
     ROOK = 'R'
-    PAWN = 'p'  # Changed to lowercase 'p' to match Square enum
+    PAWN = 'p'  # Lowercase to match Square enum convention
 
 class Player(StrEnum):
+    """
+    Player color identifiers.
+    Combined with PieceType to create unique piece identifiers.
+    """
     WHITE = 'w'
     BLACK = 'b'
 
 class Square(StrEnum):
-    EMPTY = '--'
+    """
+    Chess square state identifiers.
+    Combines player color (w/b) with piece type to represent board positions.
+    """
+    EMPTY = '--'  # Represents an empty square
     
     # White pieces
     wK = 'wK'
@@ -86,4 +123,14 @@ class Square(StrEnum):
 
     @classmethod
     def get_piece(cls, player: Player, piece: PieceType) -> 'Square':
+        """
+        Create a Square enum value from player color and piece type.
+        
+        Args:
+            player: Player enum value (WHITE/BLACK)
+            piece: PieceType enum value
+            
+        Returns:
+            Square: The corresponding Square enum value for the piece
+        """
         return cls(player + piece)
