@@ -100,27 +100,114 @@ class GameState:
         self.enPassantPossible = ()  # Keeps track of possible en passant square
         self.castlingRights = CastlingRights()
         log.info("New game state initialized")
+        self.in_check = False
+        self.checkmate = False
+        self.stalemate = False
+
+    def is_square_under_attack(self, row: int, col: int, by_white: bool) -> bool:
+        """
+        Check if a square is under attack by any opponent piece
+        This method uses basic piece movement rules without the check validation
+        to avoid infinite recursion
+        """
+        opponent_pieces = []
+        for piece in Square:
+            if piece.name[0] == 'w' and by_white:
+                opponent_pieces.append(piece)
+            elif piece.name[0] == 'b' and not by_white:
+                opponent_pieces.append(piece)
+
+        # Try moving each opponent piece to the target square
+        for r in range(8):
+            for c in range(8):
+                piece = self.board[r][c]
+                if piece in opponent_pieces:
+                    test_move = Move((r, c), (row, col), self)
+                    
+                    # Get piece type for basic move validation
+                    piece_type_char = Square(piece).name[1].lower()
+                    piece_type_map = {
+                        'r': PieceType.ROOK,
+                        'n': PieceType.KNIGHT,
+                        'b': PieceType.BISHOP,
+                        'q': PieceType.QUEEN,
+                        'k': PieceType.KING,
+                        'p': PieceType.PAWN
+                    }
+                    piece_type = piece_type_map.get(piece_type_char)
+                    
+                    if piece_type:
+                        validator = MoveValidatorFactory.get_validator(piece_type)
+                        if validator and validator.validate(test_move):
+                            return True
+        return False
+
+    def get_king_position(self) -> tuple:
+        """Helper method to find the current player's king position"""
+        king_piece = Square.wK if self.whiteToMove else Square.bK
+        for r in range(8):
+            for c in range(8):
+                if self.board[r][c] == king_piece:
+                    return (r, c)
+        return None  # Should never happen in a valid game
+
+    def is_in_check(self) -> bool:
+        """
+        Check if the current player's king is in check
+        """
+        king_pos = self.get_king_position()
+        if king_pos:
+            return self.is_square_under_attack(king_pos[0], king_pos[1], not self.whiteToMove)
+        return False
+
+    def would_move_cause_check(self, move: Move) -> bool:
+        """
+        Test if making a move would put or leave own king in check
+        """
+        # Store original board state
+        original_board = [row[:] for row in self.board]
+        original_white_to_move = self.whiteToMove
+        
+        # Make move temporarily
+        self.board[move.startRow][move.startCol] = Square.EMPTY
+        self.board[move.endRow][move.endCol] = move.pieceMoved
+
+        # Special handling for castling
+        if move.isCastling:
+            rook_start = (move.rookMove.startRow, move.rookMove.startCol)
+            rook_end = (move.rookMove.endRow, move.rookMove.endCol)
+            rook_piece = original_board[rook_start[0]][rook_start[1]]
+            self.board[rook_start[0]][rook_start[1]] = Square.EMPTY
+            self.board[rook_end[0]][rook_end[1]] = rook_piece
+
+        # Check if king is in check
+        result = self.is_in_check()
+
+        # Restore original board state
+        self.board = [row[:] for row in original_board]
+        self.whiteToMove = original_white_to_move
+
+        return result
 
     def checkMoveValidity(self, move: Move):
         """
         Takes Move as parameter and determines if it's valid
         """
-        log.debug(f"Validating move - Piece moved: {move.pieceMoved}, From: ({move.startRow}, {move.startCol}), To: ({move.endRow}, {move.endCol})")
+        piece_type_char = Square(move.pieceMoved).name[1].lower()
+        piece_color = Square(move.pieceMoved)[0]
         
-        piece_str = move.pieceMoved.value  # Get the actual string value from the enum
-        log.debug(f"Piece string representation: {piece_str}")
-        
-        piece_color = piece_str[0]  # First character is the color (w/b)
-        piece_type_char = piece_str[1]  # Second character is the piece type
-        log.debug(f"Extracted color: {piece_color}, type char: {piece_type_char}")
-        
-        # Map the character to PieceType enum
+        # First check if it's the correct player's turn
+        if (self.whiteToMove and piece_color != Player.WHITE) or (not self.whiteToMove and piece_color != Player.BLACK):
+            move.valid = False
+            log.warning(f"Invalid turn: {'White' if self.whiteToMove else 'Black'} to move, but {piece_color} piece selected")
+            return
+
         piece_type_map = {
-            'K': PieceType.KING,
-            'Q': PieceType.QUEEN,
-            'B': PieceType.BISHOP,
-            'N': PieceType.KNIGHT,
-            'R': PieceType.ROOK,
+            'r': PieceType.ROOK,
+            'n': PieceType.KNIGHT,
+            'b': PieceType.BISHOP,
+            'q': PieceType.QUEEN,
+            'k': PieceType.KING,
             'p': PieceType.PAWN
         }
         
@@ -131,20 +218,22 @@ class GameState:
             log.error(f"Failed to map piece type character: {piece_type_char}")
             move.valid = False
             return
-        
-        # First check if it's the correct player's turn
-        if (self.whiteToMove and piece_color != Player.WHITE) or (not self.whiteToMove and piece_color != Player.BLACK):
-            move.valid = False
-            log.warning(f"Invalid turn: {'White' if self.whiteToMove else 'Black'} to move, but {piece_color} piece selected")
-            return
 
         validator = MoveValidatorFactory.get_validator(piece_type)
         if validator is None:
             log.error(f"No validator found for piece type: {piece_type}")
             move.valid = False
             return
-            
+
+        # First validate the move according to piece rules
         move.valid = validator.validate(move)
+        
+        # Then check if the move would leave/put own king in check
+        if move.valid:
+            if self.would_move_cause_check(move):
+                move.valid = False
+                log.debug("Move would result in check - invalid")
+
         log.debug(f"Move validation result for {piece_type} from {(move.startRow, move.startCol)} to {(move.endRow, move.endCol)}: {'Valid' if move.valid else 'Invalid'}")
 
     def swap_players(self):
@@ -210,6 +299,9 @@ class GameState:
         move.previousCastlingRights = previousCastlingRights
         self.moveLog.append(move)
         self.swap_players()
+        
+        # After making the move and swapping players, update game state
+        self.update_game_state()
 
     def undoMove(self):
         """
@@ -282,5 +374,43 @@ class GameState:
                     self.castlingRights.black_can_castle = False
                 elif move.endCol == 7:
                     self.castlingRights.black_can_castle = False
+
+    def get_all_possible_moves(self) -> list:
+        """
+        Get all possible moves for the current player
+        """
+        moves = []
+        for r in range(8):
+            for c in range(8):
+                piece = self.board[r][c]
+                # Check if piece belongs to current player
+                if ((self.whiteToMove and piece.name.startswith('w')) or 
+                    (not self.whiteToMove and piece.name.startswith('b'))):
+                    # Try moving to every square
+                    for end_r in range(8):
+                        for end_c in range(8):
+                            move = Move((r, c), (end_r, end_c), self)
+                            self.checkMoveValidity(move)
+                            if move.valid:
+                                moves.append(move)
+        return moves
+
+    def update_game_state(self):
+        """
+        Update check, checkmate, and stalemate status
+        """
+        self.in_check = self.is_in_check()
+        possible_moves = self.get_all_possible_moves()
+        
+        if len(possible_moves) == 0:
+            if self.in_check:
+                self.checkmate = True
+                log.info(f"Checkmate! {'Black' if self.whiteToMove else 'White'} wins!")
+            else:
+                self.stalemate = True
+                log.info("Stalemate!")
+        else:
+            self.checkmate = False
+            self.stalemate = False
 
 

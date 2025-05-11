@@ -124,6 +124,17 @@ def main():
                             promoted_piece = showPromotionDialog(screen, gs.whiteToMove)
                             move.promotedPiece = getattr(Square, promoted_piece)
                         gs.makeMove(move)
+                        
+                        # Display check status
+                        if gs.in_check and not gs.checkmate:
+                            text = f"{'White' if gs.whiteToMove else 'Black'} is in check!"
+                            drawText(screen, text)
+                        elif gs.checkmate:
+                            text = f"Checkmate! {'Black' if gs.whiteToMove else 'White'} wins!"
+                            drawText(screen, text)
+                        elif gs.stalemate:
+                            drawText(screen, "Stalemate!")
+                            
                         sqSelected = ()  # reset user clicks
                         playerClicks = []
                     else:
@@ -143,6 +154,12 @@ def main():
         clock.tick(int(GameConstants.MAX_FPS))
         p.display.flip()
 
+def drawText(screen, text):
+    font = p.font.Font(None, 36)
+    text_surface = font.render(text, True, p.Color('black'))
+    text_rect = text_surface.get_rect()
+    text_rect.center = (int(GameConstants.WIDTH) // 2, int(GameConstants.HEIGHT) // 2)
+    screen.blit(text_surface, text_rect)
 
 """
 Responsible for all the graphics within a current game state.
@@ -152,6 +169,16 @@ def drawGameState(screen, gs, sqSelected):
     if sqSelected != ():  # if a square is selected
         highlightSquare(screen, sqSelected)
     drawPieces(screen, gs.board)  # draw pieces on top of those squares
+    
+    # Draw game state messages after everything else
+    if gs.checkmate:
+        text = f"Checkmate! {'Black' if gs.whiteToMove else 'White'} wins!"
+        drawText(screen, text)
+    elif gs.stalemate:
+        drawText(screen, "Stalemate!")
+    elif gs.in_check:
+        text = f"{'White' if gs.whiteToMove else 'Black'} is in check!"
+        drawText(screen, text)
 
 """
 Highlight the selected square with a red border
